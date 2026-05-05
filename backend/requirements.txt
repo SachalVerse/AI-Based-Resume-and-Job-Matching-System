@@ -1,0 +1,44 @@
+# Core Backend
+fastapi
+uvicorn
+gunicorn
+pydantic
+python-dotenv
+python-multipart
+
+# Database
+pymongo
+motor
+
+# AI and NLP
+google-generativeai
+sentence-transformers
+spacy
+nltk
+scikit-learn
+numpy
+pandas
+
+# GitHub Reader
+PyGithub
+
+# Job Fetching
+requests
+beautifulsoup4
+httpx
+
+# PDF Resume
+reportlab
+pymupdf
+jinja2
+weasyprint
+
+# Authentication
+python-jose
+bcrypt
+passlib
+
+# Email
+google-auth
+google-auth-oauthlib
+google-api-python-client
