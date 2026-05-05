@@ -65,7 +65,7 @@ cd "AI-Based Resume and Job Matching System"
   - `GOOGLE_CLIENT_SECRET`: Your Google OAuth Secret
 
 ## 🛠️ Tech Stack
-- **AI**: Google Gemini 1.5 Flash
+- **AI**: Google Gemini 2.5 Flash
 - **Backend**: FastAPI, MongoDB (Motor), Pydantic
 - **Frontend**: Next.js 16 (App Router), TailwindCSS, Framer Motion
 - **Auth**: NextAuth.js (Google OAuth)
