@@ -21,6 +21,14 @@ export default function ResumeCvDashboard({ variant = "standalone" }: ResumeCvDa
   const [savedResumes, setSavedResumes] = useState<{ id: string; name: string; date: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
 
   const fromStudent = variant === "student";
 
@@ -76,6 +84,7 @@ export default function ResumeCvDashboard({ variant = "standalone" }: ResumeCvDa
   };
 
   const handleGenerateFromGithub = async () => {
+    if (cooldown > 0) return;
     const username = prompt("Enter your GitHub username:");
     if (!username) return;
 
@@ -90,7 +99,12 @@ export default function ResumeCvDashboard({ variant = "standalone" }: ResumeCvDa
       loadResumes();
     } catch (err: any) {
       console.error("GitHub Generation failed:", err);
-      alert("Failed to generate CV. Please make sure GitHub data is accessible and AI is configured.");
+      const message = err.response?.data?.detail || "Failed to generate CV. Please check your GitHub username and AI settings.";
+      alert(message);
+      
+      if (err.response?.status === 429) {
+        setCooldown(60); // Set 1-minute cooldown on 429
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -135,11 +149,11 @@ export default function ResumeCvDashboard({ variant = "standalone" }: ResumeCvDa
           </button>
           <button 
             onClick={handleGenerateFromGithub} 
-            disabled={isGenerating}
+            disabled={isGenerating || cooldown > 0}
             className="px-3 py-2 text-sm border border-blue-200 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 flex items-center gap-2 disabled:opacity-50"
           >
             <Code className="w-4 h-4" />
-            {isGenerating ? "Generating..." : "Generate from GitHub"}
+            {isGenerating ? "Generating..." : cooldown > 0 ? `Wait (${cooldown}s)` : "Generate from GitHub"}
           </button>
           <button 
             onClick={handleCreateNew} 

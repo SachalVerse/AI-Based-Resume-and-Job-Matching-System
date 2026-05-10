@@ -17,6 +17,7 @@ class Database:
         self.job_suggestions = self.db.job_suggestions
         self.rl_feedback = self.db.rl_feedback
         self.emails = self.db.emails
+        self.linkedin_posts = self.db.linkedin_posts
 
     async def ensure_indexes(self):
         # User & Profile Indexes
@@ -28,7 +29,7 @@ class Database:
         # Operational Indexes
         await self.jobs.create_index([("recruiter_email", 1), ("status", 1)])
         await self.applications.create_index([("job_id", 1), ("status", 1)])
-        await self.applications.create_index([("student_email", 1), ("job_id", 1)], unique=True)
+        await self.applications.create_index([("student_email", 1), ("job_id", 1)])
         
         # AI & Suggestions
         await self.job_suggestions.create_index([("user_email", 1), ("created_at", -1)])
@@ -36,6 +37,13 @@ class Database:
         await self.emails.create_index([("id", 1), ("user_email", 1), ("role", 1)], unique=True)
         await self.emails.create_index([("user_email", 1), ("role", 1), ("category", 1)])
         
+        # LinkedIn Posts (scraped via Chrome Extension)
+        await self.linkedin_posts.create_index([("user_email", 1), ("saved_at", -1)])
+        await self.linkedin_posts.create_index([("user_email", 1), ("post_id", 1)], unique=True, sparse=True)
+        
         print("SaaS Database indexes ensured.")
 
 db = Database()
+
+async def get_db():
+    return db.db

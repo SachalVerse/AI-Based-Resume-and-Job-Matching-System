@@ -34,11 +34,16 @@ export default function EmailAnalyzer() {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
 
   useEffect(() => {
-    if (session?.accessToken && emails.length === 0) fetchEmails();
-  }, [session]);
+    // Only fetch when we have a confirmed access token to avoid 400 errors on mount
+    if (session?.accessToken) fetchEmails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.accessToken]);
 
   const fetchEmails = async () => {
-    if (!session?.accessToken) return;
+    if (!session?.accessToken) {
+      setError("Your session is not ready yet. Please wait a moment and try again.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

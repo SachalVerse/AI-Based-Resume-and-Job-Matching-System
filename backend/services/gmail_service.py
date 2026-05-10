@@ -39,8 +39,8 @@ class GmailService:
             results = service.users().messages().list(userId="me", q=query, maxResults=max_emails).execute()
             messages = results.get("messages", [])
             
-            from services.gemini_service import GeminiService
-            gemini = GeminiService()
+            from services.groq_service import GroqService
+            ai_service = GroqService()
 
             wrong_feedback_cursor = db.rl_feedback.find({
                 "user_email": user_email,
@@ -75,31 +75,27 @@ class GmailService:
                 snippet = txt.get("snippet", "")
                 labels = txt.get("labelIds", [])
                 
-                # 4. AI Categorization
+                # 4. AI Categorization & Extraction
                 category = "Other"
                 ai_details = None
                 if "SPAM" in labels:
                     category = "Spam"
                 else:
-                    if role == "recruiter":
-                        # Fetch Recruiter Criteria
-                        profile = await db.recruiters.find_one({"email": user_email})
-                        rec_criteria = profile.get("criteria", "") if profile else ""
-                        
-                        analysis = await gemini.extract_recruiter_opportunity(
-                            f"Subject: {subject}\nSnippet: {snippet}",
-                            criteria=rec_criteria
-                        )
-                        if analysis and analysis.get("is_real") is not False:
-                            category = analysis.get("type", "Other")
-                            ai_details = analysis
+                    email_body = f"Subject: {subject}\nSender: {sender}\nSnippet: {snippet}"
+                    
+                    if role == "student":
+                        # For students, we want to find opportunities
+                        opp = await ai_service.extract_opportunity(email_body)
+                        if opp and opp.get("is_real"):
+                            category = opp.get("type", "Opportunity")
+                            ai_details = opp
+                        else:
+                            category = "Other"
                     else:
-                        analysis = await gemini.extract_opportunity(
-                            f"Subject: {subject}\nSnippet: {snippet}",
-                            user_email=user_email
-                        )
-                        if analysis and analysis.get("is_real") is not False:
-                            category = "Opportunity"
+                        # For recruiters, we use categorization
+                        analysis = await ai_service.categorize_email(email_body)
+                        if analysis:
+                            category = analysis.get("category", "Other")
                             ai_details = analysis
 
                 email_data = {

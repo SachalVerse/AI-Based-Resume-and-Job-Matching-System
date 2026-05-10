@@ -22,16 +22,22 @@ export default function RecruiterEmailAnalyzer({ onSync }: RecruiterEmailAnalyze
   const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState<string | null>(null);
 
   useEffect(() => {
-    if (session?.accessToken && emails.length === 0) fetchEmails();
-  }, [session]);
+    // Only fetch when we have a confirmed access token to avoid 400 errors on mount
+    if (session?.accessToken) fetchEmails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.accessToken]);
 
   const fetchEmails = async () => {
-    if (!session?.accessToken) return;
+    const token = (session as any)?.accessToken || session?.user?.accessToken;
+    if (!token) {
+      setError("Your session is not ready yet. Please wait a moment and try again.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const response = await api.get("/recruiter/fetch-emails", {
-        headers: { "access-token": session.accessToken },
+        headers: { "access-token": token },
       });
       const data = response.data || [];
       setEmails(data);
@@ -209,7 +215,7 @@ export default function RecruiterEmailAnalyzer({ onSync }: RecruiterEmailAnalyze
                       <div className="mb-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden">
                         <div className="relative z-10">
                           <p className="text-xs text-gray-600 font-medium italic mb-2 leading-relaxed">
-                            "{email.ai_details.intent_summary}"
+                            &ldquo;{email.ai_details?.intent_summary}&rdquo;
                           </p>
                           {email.ai_details.match_reason && (
                             <div className="flex items-start gap-2 mt-2 pt-2 border-t border-gray-200/50">

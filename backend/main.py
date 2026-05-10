@@ -2,7 +2,14 @@ from fastapi import FastAPI, Form, Response
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from config import Config
-from routes import auth_routes, student_routes, recruiter_routes, resume_routes
+from routes import (
+    auth_routes, 
+    student_routes, 
+    recruiter_routes, 
+    resume_routes, 
+    job_routes,
+    linkedin_routes
+)
 from services.resume_service import ResumeService
 from database import db
 import uvicorn
@@ -19,7 +26,7 @@ async def startup_db_client():
     await db.ensure_indexes()
 
 # Optimized CORS Configuration
-cors_origins = [o.strip() for o in (Config.CORS_ORIGINS or "http://localhost:3000").split(",") if o.strip()]
+cors_origins = [o.strip() for o in (Config.CORS_ORIGINS or "http://localhost:3000,https://www.linkedin.com,https://linkedin.com").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins or ["*"],
@@ -33,6 +40,8 @@ app.include_router(auth_routes.router)
 app.include_router(student_routes.router)
 app.include_router(recruiter_routes.router)
 app.include_router(resume_routes.router)
+app.include_router(job_routes.router)
+app.include_router(linkedin_routes.router)
 
 @app.get("/")
 async def health_check():

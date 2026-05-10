@@ -28,9 +28,12 @@ export default function PostJobPage() {
     }
     setSaving(true);
     try {
-      await api.post("/recruiter/jobs", {
-        ...form,
-        requirements: form.requirements.split("\n").map(r => r.trim()).filter(Boolean),
+      await api.post("/jobs/", {
+        title: form.title,
+        company: form.company,
+        location: form.location,
+        salary_range: form.salary_range,
+        description: form.description,
       });
       setSuccess(true);
       setTimeout(() => router.push("/recruiter/jobs"), 1500);
@@ -115,34 +118,30 @@ export default function PostJobPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Job Description *</label>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Detailed Job Description *</label>
           <textarea
             value={form.description}
             onChange={e => setForm({ ...form, description: e.target.value })}
-            placeholder="Describe the role, responsibilities, and what makes it exciting..."
-            rows={5}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
+            placeholder="Paste your job description here. Our AI will automatically extract required skills, tech stack, and experience levels."
+            rows={10}
+            className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none leading-relaxed"
             required
           />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Requirements (one per line)</label>
-          <textarea
-            value={form.requirements}
-            onChange={e => setForm({ ...form, requirements: e.target.value })}
-            placeholder={"3+ years experience in React\nStrong TypeScript skills\nExperience with REST APIs"}
-            rows={4}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
-          />
+          <div className="mt-3 flex items-center gap-2 text-[11px] font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full w-fit uppercase tracking-wider">
+            <CheckCircle className="w-3.5 h-3.5" /> AI Hiring Intelligence Enabled
+          </div>
         </div>
 
         <button
           type="submit"
           disabled={saving}
-          className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+          className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black hover:bg-black transition-all shadow-xl shadow-gray-200 disabled:opacity-70 flex items-center justify-center gap-3 mt-4"
         >
-          {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Posting Job...</> : <><PlusCircle className="w-4 h-4" /> Post Job</>}
+          {saving ? (
+            <><Loader2 className="w-5 h-5 animate-spin" /> Analyzing Requirements...</>
+          ) : (
+            <><PlusCircle className="w-5 h-5" /> Post & Analyze Job</>
+          )}
         </button>
       </form>
     </div>

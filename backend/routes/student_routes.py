@@ -8,9 +8,8 @@ from datetime import datetime
 import json
 import asyncio
 from services.github_service import GithubService
-from services.gemini_service import GeminiService
+from services.groq_service import GroqService
 from services.gmail_service import GmailService
-from services.jsearch_service import JSearchService
 
 router = APIRouter(prefix="/student", tags=["student"])
 
@@ -72,44 +71,8 @@ def _to_jsonable_suggestion(sugg: dict) -> dict:
             res[k] = new_list
     return res
 
-def _dedupe_jobs(jobs: List[dict]) -> List[dict]:
-    seen = set()
-    unique = []
-    for j in jobs:
-        key = (
-            str(j.get("id") or "").strip().lower(),
-            str(j.get("job_title") or "").strip().lower(),
-            str(j.get("employer_name") or "").strip().lower(),
-            str(j.get("job_city") or "").strip().lower(),
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(j)
-    return unique
-
-def _fallback_rank_jobs(profile: dict, jobs: List[dict]) -> List[dict]:
-    """Fast local scoring when AI ranking is slow/unavailable."""
-    skills = [str(s).lower() for s in profile.get("skills", [])]
-    interests = [str(i).lower() for i in profile.get("interests", [])]
-    scored = []
-    for j in jobs:
-        text = f"{j.get('job_title', '')} {j.get('job_description', '')}".lower()
-        skill_hits = sum(1 for s in skills if s and s in text)
-        interest_hits = sum(1 for i in interests if i and i in text)
-        score = min(95, 40 + skill_hits * 8 + interest_hits * 6)
-        reason = "Quick score from skills/interests while AI ranking finalizes."
-        scored.append({
-            "user_email": profile.get("email"),
-            "job_data": j,
-            "ai_score": int(score),
-            "ai_reason": reason,
-            "created_at": datetime.utcnow(),
-            "status": "new",
-        })
-    return scored
 github_service = GithubService()
-gemini_service = GeminiService()
+groq_service = GroqService()
 
 # --- Profile Management (Onboarding Guard) ---
 
@@ -138,87 +101,6 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Profile incomplete")
     return student["profile"]
 
-# --- Job Suggestions (Part 5) ---
-
-@router.get("/suggestions")
-async def get_job_suggestions(refresh: bool = False, current_user: dict = Depends(get_current_user)):
-    email = current_user["email"]
-
-    # 1. Try to fetch existing suggestions from MongoDB (ignore legacy adzuna docs)
-    if not refresh:
-        cursor = db.job_suggestions.find({
-            "user_email": email,
-            "$or": [
-                {"job_data.source": {"$exists": False}},
-                {"job_data.source": {"$ne": "adzuna"}},
-            ],
-        }).sort("created_at", -1).limit(10)
-        existing = await cursor.to_list(None)
-        if existing:
-            return [_to_jsonable_suggestion(ex) for ex in existing]
-
-    # 2. If refresh or no suggestions, generate new ones via AI
-    student = await db.students.find_one({"email": email})
-    if not student or "profile" not in student:
-        raise HTTPException(status_code=400, detail="Complete profile first")
-    
-    profile = student["profile"]
-    # Fetch remote jobs using RapidAPI JSearch only.
-    preferred_query = profile.get("interests", ["Software"])[0]
-    profile_location = profile.get("location")
-    country = _infer_country_from_text(profile_location)
-    raw_jobs = await JSearchService.search_jobs(
-        query=preferred_query,
-        country=country,
-        location=profile_location,
-        page=1,
-        num_pages=1,
-    )
-    raw_jobs = _dedupe_jobs(raw_jobs)
-    raw_jobs = [j for j in raw_jobs if str(j.get("source", "")).lower() != "adzuna"]
-    if not raw_jobs:
-        return []
-    
-    # AI Ranking
-    prompt = f"Rank these jobs for this student. Student: {profile}. Jobs: {json.dumps(raw_jobs[:10])}. Return JSON list of {{id, score, reason}}"
-    try:
-        if not gemini_service.model:
-            raise Exception("Gemini model unavailable")
-        response = await asyncio.wait_for(
-            asyncio.to_thread(lambda: gemini_service.model.generate_content(prompt)),
-            timeout=12.0
-        )
-        rankings = json.loads(gemini_service._clean_json_response(response.text))
-        
-        suggestions = []
-        for rank in rankings:
-            job_data = next((j for j in raw_jobs if j.get("id") == rank["id"]), None)
-            if job_data:
-                suggestion = {
-                    "user_email": email,
-                    "job_data": job_data,
-                    "ai_score": rank["score"],
-                    "ai_reason": rank["reason"],
-                    "created_at": datetime.utcnow(),
-                    "status": "new"
-                }
-                suggestions.append(suggestion)
-        if not suggestions:
-            suggestions = _fallback_rank_jobs({**profile, "email": email}, raw_jobs[:10])
-        
-        if suggestions:
-            # Clear old and insert new
-            await db.job_suggestions.delete_many({"user_email": email})
-            await db.job_suggestions.insert_many(suggestions)
-            
-        return [_to_jsonable_suggestion(s) for s in suggestions]
-    except Exception as e:
-        print(f"Suggestion Error: {e}")
-        suggestions = _fallback_rank_jobs({**profile, "email": email}, raw_jobs[:10])
-        if suggestions:
-            await db.job_suggestions.delete_many({"user_email": email})
-            await db.job_suggestions.insert_many(suggestions)
-        return [_to_jsonable_suggestion(s) for s in suggestions]
 
 # --- Standard Features ---
 
@@ -253,80 +135,6 @@ async def feedback_categorization(
     )
     return {"message": "Feedback recorded", "feedback": fb}
 
-@router.post("/batch-match")
-async def batch_match(payload: dict, current_user: dict = Depends(get_current_user)):
-    """
-    Rank a list of jobs against the current student's profile.
-    Expects payload: { jobs: [{ id, title, description }, ...] }
-    """
-    jobs = payload.get("jobs") if isinstance(payload, dict) else None
-    if not isinstance(jobs, list):
-        raise HTTPException(status_code=400, detail="Invalid jobs payload")
-
-    student = await db.students.find_one({"email": current_user["email"]})
-    profile = (student or {}).get("profile", {})
-    skills = [str(s).lower() for s in profile.get("skills", [])]
-    interests = [str(i).lower() for i in profile.get("interests", [])]
-
-    # Fast deterministic fallback scoring.
-    fallback = []
-    for j in jobs:
-        jid = j.get("id")
-        text = f"{j.get('title', '')} {j.get('description', '')}".lower()
-        skill_hits = sum(1 for s in skills if s and s in text)
-        interest_hits = sum(1 for i in interests if i and i in text)
-        score = max(1, min(95, 35 + skill_hits * 10 + interest_hits * 8))
-        fallback.append({
-            "id": jid,
-            "score": int(score),
-            "reason": "Matched against your saved skills and interests.",
-        })
-
-    # If AI model unavailable, return fallback immediately.
-    if not gemini_service.model:
-        return fallback
-
-    try:
-        prompt = (
-            "Rank these jobs for this student profile and return JSON array only. "
-            "Each item must be {id, score, reason} with score 0-100.\n"
-            f"Student profile: {json.dumps(profile)}\n"
-            f"Jobs: {json.dumps(jobs[:20])}"
-        )
-        response = await asyncio.wait_for(
-            asyncio.to_thread(lambda: gemini_service.model.generate_content(prompt)),
-            timeout=10.0,
-        )
-        ranked = json.loads(gemini_service._clean_json_response(response.text))
-        if not isinstance(ranked, list):
-            return fallback
-        valid_ids = {j.get("id") for j in jobs}
-        cleaned = []
-        for item in ranked:
-            if not isinstance(item, dict):
-                continue
-            if item.get("id") not in valid_ids:
-                continue
-            cleaned.append({
-                "id": item.get("id"),
-                "score": int(item.get("score", 0)),
-                "reason": str(item.get("reason", "AI-ranked based on profile-job fit.")),
-            })
-        return cleaned or fallback
-    except Exception:
-        return fallback
-
-@router.get("/jobs-search")
-async def search_jobs(query: str = "Jobs", country: str = "pk", location: Optional[str] = None):
-    # RapidAPI JSearch only.
-    jobs = await JSearchService.search_jobs(
-        query=query,
-        country=country,
-        location=location,
-        page=1,
-        num_pages=1,
-    )
-    return jobs
 
 @router.get("/career-analysis")
 async def get_career_analysis(current_user: dict = Depends(get_current_user)):
@@ -351,9 +159,10 @@ async def get_career_analysis(current_user: dict = Depends(get_current_user)):
         
     try:
         # Fetch GitHub data
-        gh_data = await github_service.analyze_user(github_username)
-        # Use Gemini to generate deep insights
-        insights = await gemini_service.analyze_career_path(profile, gh_data)
+        gh_data = await github_service.get_user_data(github_username)
+        # Use Groq to generate deep insights
+        insights = await groq_service.analyze_career_path(profile, gh_data)
+            
         if not isinstance(insights, dict):
             insights = {}
         insights = {
@@ -377,3 +186,5 @@ async def get_career_analysis(current_user: dict = Depends(get_current_user)):
                 "summary": "We could not load AI insights right now. Please try again shortly."
             }
         }
+
+

@@ -22,18 +22,23 @@ export default function RecruiterDashboard() {
       .then(r => setCriteria(r.data?.criteria || ""))
       .catch(() => {});
 
-    // Initial load of applicant matches (emails are fetched by the analyzer component)
-    api.get("/recruiter/applicant-matches")
-      .then(res => {
-        const applicants = res.data || [];
-        const strong = applicants.filter((a: any) => (a.match_score || 0) >= 70).length;
-        setStats(prev => ({
-          ...prev,
-          applicants: applicants.length,
-          strongMatches: strong,
-        }));
-      })
-      .catch(console.error);
+    // Fetch both Platform Applications and Gmail Matches to calculate accurate stats
+    Promise.all([
+      api.get("/recruiter/candidates").catch(() => ({ data: [] })),
+      api.get("/recruiter/applicant-matches").catch(() => ({ data: [] }))
+    ]).then(([platformRes, gmailRes]) => {
+      const platformApps = platformRes.data || [];
+      const gmailApps = gmailRes.data || [];
+      
+      const allApplicants = [...platformApps, ...gmailApps];
+      const strong = allApplicants.filter((a: any) => (a.ai_score || a.match_score || 0) >= 70).length;
+      
+      setStats(prev => ({
+        ...prev,
+        applicants: allApplicants.length,
+        strongMatches: strong,
+      }));
+    });
   }, [session?.user?.email, session?.accessToken]);
 
   const saveCriteria = async () => {

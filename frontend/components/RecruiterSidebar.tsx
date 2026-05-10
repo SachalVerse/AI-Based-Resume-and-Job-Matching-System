@@ -5,15 +5,18 @@ import {
   LayoutDashboard, 
   Users, 
   BrainCircuit,
-  LogOut
+  LogOut,
+  Briefcase,
+  PlusCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "next-auth/react";
 
 const menuItems = [
   { name: "Dashboard", href: "/recruiter/dashboard", icon: LayoutDashboard },
-  { name: "Matched Applicants", href: "/recruiter/candidates", icon: Users },
-  { name: "AI Criteria", href: "/recruiter/dashboard", icon: BrainCircuit },
+  { name: "My Job Postings", href: "/recruiter/jobs", icon: Briefcase },
+  { name: "Post a New Job", href: "/recruiter/post-job", icon: PlusCircle },
+  { name: "Gmail Applicants", href: "/recruiter/candidates", icon: Users },
 ];
 
 export default function RecruiterSidebar() {

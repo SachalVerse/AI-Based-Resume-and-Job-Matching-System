@@ -12,6 +12,7 @@ import type {
   ResumeSection,
 } from "@/types/types";
 import api from "@/lib/api";
+import { useSession } from "next-auth/react";
 
 
 export function getDefaultData(): ResumeData {
@@ -292,9 +293,8 @@ export interface UseResumeDataReturn {
   moveFieldDown: (sectionId: string, fieldId: string) => void;
 }
 
-// ── Hook ──────────────────────────────────────────────
-
 export function useResumeData(resumeId: string): UseResumeDataReturn {
+  const { data: session } = useSession();
   const [data, dispatch] = useReducer(reducer, undefined, getDefaultData);
   const [hydrated, setHydrated] = useState(false);
 
@@ -312,8 +312,11 @@ export function useResumeData(resumeId: string): UseResumeDataReturn {
              setHydrated(true);
              return;
           }
-        } catch (err) {
-          console.error("Failed to load from backend:", err);
+        } catch (err: any) {
+          // 404 is expected for locally created resumes that haven't synced yet
+          if (err.response?.status !== 404) {
+            console.error("Failed to load from backend:", err);
+          }
         }
       }
 
@@ -339,17 +342,19 @@ export function useResumeData(resumeId: string): UseResumeDataReturn {
     // Debounce backend save
     const timeout = setTimeout(async () => {
       try {
+        const userEmail = session?.user?.email;
+        if (!userEmail) return;
+
         const payload = {
           name: data.name,
           content: data,
-          user_email: "student@example.com", // TODO: Get from session
+          user_email: userEmail,
         };
         
         if (resumeId.length > 10) {
            await api.put(`/resumes/${resumeId}`, payload);
         } else {
-           const res = await api.post("/resumes/", payload);
-           // Optional: Update ID in URL or state if we wanted to transition from local to remote
+           await api.post("/resumes/", payload);
         }
       } catch (err) {
         console.error("Sync error:", err);

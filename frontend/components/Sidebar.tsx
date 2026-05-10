@@ -4,22 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
-  Search, 
   Briefcase, 
   Settings,
-  Sparkles,
-  BarChart2,
-  LogOut
+  LogOut,
+  FolderOpen,
+  Link2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "next-auth/react";
 
 const navItems = [
   { name: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard },
-  { name: "Job Search", href: "/student/jobs", icon: Search },
-  { name: "Job Suggestions", href: "/student/suggestions", icon: Sparkles },
-  { name: "My Resumes", href: "/student/resume", icon: Briefcase },
-  { name: "Analytics", href: "/student/analytics", icon: BarChart2 },
+  { name: "Job Board", href: "/student/jobs", icon: Briefcase },
+  { name: "My Resumes", href: "/student/resume", icon: FolderOpen },
+  { name: "LinkedIn Posts", href: "/student/linkedin", icon: Link2 },
   { name: "Settings", href: "/student/settings", icon: Settings },
 ];
 
@@ -51,9 +49,6 @@ export default function Sidebar() {
             >
               <Icon className={cn("w-4 h-4", isActive ? "text-blue-600" : "text-gray-400")} />
               {item.name}
-              {item.name === "Job Suggestions" && (
-                <span className="ml-auto text-[9px] bg-blue-100 text-blue-600 font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide">AI</span>
-              )}
             </Link>
           );
         })}

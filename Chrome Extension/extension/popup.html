@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CareerTrack LinkedIn Sync</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text h2 { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+    .logo-text p  { font-size: 10px; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .card-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+
+    #emailInput {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #emailInput:focus { border-color: #3b82f6; }
+    #emailInput::placeholder { color: #475569; }
+
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-top: 10px;
+    }
+    .btn-primary  { background: #3b82f6; color: #fff; }
+    .btn-primary:hover  { background: #2563eb; }
+    .btn-danger   { background: #ef4444; color: #fff; }
+    .btn-danger:hover   { background: #dc2626; }
+    .btn:active { transform: scale(0.98); }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    .status-badge.linked   { background: #14532d33; color: #4ade80; border: 1px solid #16a34a55; }
+    .status-badge.unlinked { background: #7c2d1233; color: #fb923c; border: 1px solid #c2410c55; }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .dot.green  { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .dot.orange { background: #fb923c; }
+
+    .info-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+    .info-box strong { color: #cbd5e1; }
+
+    #linkedView { display: none; }
+    #linkedEmail { font-weight: 700; color: #60a5fa; }
+  </style>
+</head>
+<body>
+
+  <div class="logo-row">
+    <div class="logo-icon">🔗</div>
+    <div class="logo-text">
+      <h2>CareerTrack Sync</h2>
+      <p>LinkedIn Post Collector</p>
+    </div>
+  </div>
+
+  <!-- UNLINKED VIEW -->
+  <div id="unlinkView">
+    <div class="card">
+      <div class="card-label">Link Your Website Account</div>
+      <input id="emailInput" type="email" placeholder="your@email.com (website login email)" />
+      <button id="linkBtn" class="btn btn-primary">🔗 Link Account &amp; Start Syncing</button>
+    </div>
+    <div class="info-box">
+      Enter the <strong>same email</strong> you use to log in to CareerTrack. 
+      Once linked, the extension will automatically sync your LinkedIn posts to your dashboard every time you browse LinkedIn.
+    </div>
+  </div>
+
+  <!-- LINKED VIEW -->
+  <div id="linkedView">
+    <div class="card">
+      <div class="card-label">Sync Status</div>
+      <div class="status-badge linked">
+        <div class="dot green"></div>
+        Active — syncing to <span id="linkedEmail"></span>
+      </div>
+      <button id="unlinkBtn" class="btn btn-danger" style="margin-top: 12px;">Unlink Account</button>
+    </div>
+    <div class="info-box">
+      Browse your LinkedIn <strong>feed</strong> or <strong>profile</strong> and your posts will be automatically captured and saved to your CareerTrack dashboard.
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

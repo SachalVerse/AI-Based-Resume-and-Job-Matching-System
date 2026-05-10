@@ -3,11 +3,11 @@ from typing import List, Optional
 from pydantic import BaseModel
 from database import db
 from bson import ObjectId
-from datetime import datetime
-from services.gemini_service import GeminiService
+from datetime import datetime, timedelta
+from services.groq_service import GroqService
 from services.github_service import GithubService
 
-gemini = GeminiService()
+groq = GroqService()
 github = GithubService()
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
@@ -78,22 +78,47 @@ async def generate_from_github(req: GithubGenerateRequest):
     student = await db.students.find_one({"email": req.user_email})
     profile = student.get("profile", {}) if student else {}
     
-    # 2. Fetch GitHub data
+    # 2. Check for recent cache (last 10 mins)
+    resume_name = f"GitHub Resume - {req.github_username}"
+    cache_threshold = datetime.utcnow() - timedelta(minutes=10)
+    recent_resume = await db.resumes.find_one({
+        "user_email": req.user_email,
+        "name": resume_name,
+        "updated_at": {"$gt": cache_threshold}
+    })
+    
+    if recent_resume:
+        return {
+            "id": str(recent_resume["_id"]), 
+            "message": "Resume retrieved from recent cache (to save AI quota).",
+            "is_cached": True
+        }
+
+    # 3. Fetch GitHub data
     github_data = await github.get_user_data(req.github_username)
     
-    # 3. Generate CV via AI
-    cv_json = await gemini.generate_cv_data(profile, github_data)
+    # 4. Generate CV via AI
+    cv_json = await groq.generate_cv_data(profile, github_data)
     
     if not cv_json:
         raise HTTPException(status_code=500, detail="Failed to generate CV via AI")
         
-    # 4. Save to DB
+    # 5. Save to DB (Upsert)
     resume_doc = {
-        "name": f"GitHub Resume - {req.github_username}",
+        "name": resume_name,
         "content": cv_json,
         "user_email": req.user_email,
         "updated_at": datetime.utcnow()
     }
-    result = await db.resumes.insert_one(resume_doc)
     
-    return {"id": str(result.inserted_id), "message": "Resume generated and saved"}
+    # Update if exists, or insert
+    await db.resumes.update_one(
+        {"user_email": req.user_email, "name": resume_name},
+        {"$set": resume_doc},
+        upsert=True
+    )
+    
+    # Find the doc to get the ID (since upsert return doesn't give _id if updated)
+    final_doc = await db.resumes.find_one({"user_email": req.user_email, "name": resume_name})
+    
+    return {"id": str(final_doc["_id"]), "message": "Resume generated and saved"}

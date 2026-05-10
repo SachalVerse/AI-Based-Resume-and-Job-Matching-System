@@ -10,7 +10,6 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from urllib.request import Request, urlopen
 import json
-import jwt
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -86,6 +85,8 @@ async def google_auth(payload: dict):
         email = idinfo.get("email")
         name = idinfo.get("name", "")
         picture = idinfo.get("picture", "")
+        selected_role = payload.get("role") # Explicit role from frontend
+        
         if not email:
             raise HTTPException(status_code=401, detail="Invalid Google user info")
 
@@ -93,26 +94,39 @@ async def google_auth(payload: dict):
         student = await db.students.find_one({"email": email})
         recruiter = await db.recruiters.find_one({"email": email})
         role_pref = await db.user_roles.find_one({"email": email})
-        preferred_role = role_pref.get("role") if role_pref else None
+        
+        # Priority: 
+        # 1. New selection from frontend (if logging in to specific panel)
+        # 2. Persisted preference in DB
+        # 3. Existing record type
+        role = selected_role or (role_pref.get("role") if role_pref else None)
+        if not role:
+            role = "recruiter" if recruiter else ("student" if student else None)
 
-        user = student or recruiter
-        role = None
-        if preferred_role in ["student", "recruiter"]:
-            role = preferred_role
-        elif recruiter:
-            role = recruiter.get("role") or "recruiter"
-        elif student:
-            role = student.get("role") or "student"
-
-        if not user:
-            # Create a placeholder user if they don't exist
-            # Note: We don't know the role yet, so role=None
-            await db.students.update_one(
+        if not student and not recruiter:
+            # New user: use the selected role to create initial record
+            target_role = role or "student" # Default to student if somehow still None
+            if target_role == "recruiter":
+                await db.recruiters.update_one(
+                    {"email": email},
+                    {"$set": {"name": name, "picture": picture, "created_at": datetime.utcnow(), "role": "recruiter"}},
+                    upsert=True
+                )
+                role = "recruiter"
+            else:
+                await db.students.update_one(
+                    {"email": email},
+                    {"$set": {"name": name, "picture": picture, "created_at": datetime.utcnow(), "role": "student"}},
+                    upsert=True
+                )
+                role = "student"
+            
+            # Persist the role selection
+            await db.user_roles.update_one(
                 {"email": email},
-                {"$set": {"name": name, "picture": picture, "created_at": datetime.utcnow()}},
+                {"$set": {"email": email, "role": role, "updated_at": datetime.utcnow()}},
                 upsert=True
             )
-            role = None # Frontend will catch this and show onboarding
 
         # 3. Issue System JWT
         access_token = create_access_token(data={"sub": email, "role": role})
@@ -128,6 +142,69 @@ async def google_auth(payload: dict):
         raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid Google Token")
+@router.post("/linkedin")
+async def linkedin_auth(payload: dict):
+    """
+    LinkedIn OAuth (OIDC):
+    1. Fetch userinfo with access_token
+    2. Sync recruiter profile (upsert)
+    3. Return System JWT + Role
+    """
+    access_token = payload.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Missing access_token")
+
+    try:
+        # 1. Fetch LinkedIn user info (OpenID Connect)
+        req = Request(
+            "https://api.linkedin.com/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        with urlopen(req, timeout=10) as response:
+            idinfo = json.loads(response.read().decode("utf-8"))
+
+        email = idinfo.get("email")
+        name = idinfo.get("name", "")
+        picture = idinfo.get("picture", "")
+        
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid LinkedIn user info")
+
+        # 2. Sync Recruiter Profile
+        # For LinkedIn, we assume role is 'recruiter' unless otherwise specified
+        role = "recruiter"
+        
+        await db.recruiters.update_one(
+            {"email": email},
+            {"$set": {
+                "name": name, 
+                "picture": picture, 
+                "linkedin_id": idinfo.get("sub"),
+                "last_login_at": datetime.utcnow(), 
+                "role": "recruiter"
+            }},
+            upsert=True
+        )
+        
+        # Persist the role selection
+        await db.user_roles.update_one(
+            {"email": email},
+            {"$set": {"email": email, "role": role, "updated_at": datetime.utcnow()}},
+            upsert=True
+        )
+
+        # 3. Issue System JWT
+        system_access_token = create_access_token(data={"sub": email, "role": role})
+        return {
+            "access_token": system_access_token,
+            "token_type": "bearer",
+            "role": role,
+            "user": {"email": email, "name": name, "picture": picture}
+        }
+    except Exception as e:
+        print(f"LinkedIn Auth Error: {e}")
+        raise HTTPException(status_code=401, detail=f"LinkedIn authentication failed: {e}")
+
 @router.post("/set-role")
 async def set_role(payload: dict):
     """Updates user role after first login."""

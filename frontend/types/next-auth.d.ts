@@ -4,6 +4,8 @@ declare module "next-auth" {
   interface Session {
     user: {
       role?: string | null;
+      systemToken?: string;
+      accessToken?: string;
     } & DefaultSession["user"];
     systemToken?: string;
     accessToken?: string;
@@ -12,6 +14,7 @@ declare module "next-auth" {
   interface User {
     role?: string | null;
     systemToken?: string;
+    accessToken?: string;
   }
 }
 
