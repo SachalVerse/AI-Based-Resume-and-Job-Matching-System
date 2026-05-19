@@ -19,7 +19,7 @@ export default function ProfileForm() {
 
   const saveProfile = async () => {
     try {
-      await api.post("/student/save-profile", profile);
+      await api.post("/student/profile", profile);
       toast("Profile saved. AI matching is active.");
     } catch (err) {
       console.error(err);

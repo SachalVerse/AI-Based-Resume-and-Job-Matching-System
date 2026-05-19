@@ -160,8 +160,12 @@ async def get_career_analysis(current_user: dict = Depends(get_current_user)):
     try:
         # Fetch GitHub data
         gh_data = await github_service.get_user_data(github_username)
+        # Fetch LinkedIn data
+        linkedin_cursor = db.linkedin_posts.find({"user_email": current_user["email"]}).sort("saved_at", -1).limit(10)
+        linkedin_posts = [p["text"] async for p in linkedin_cursor]
+
         # Use Groq to generate deep insights
-        insights = await groq_service.analyze_career_path(profile, gh_data)
+        insights = await groq_service.analyze_career_path(profile, gh_data, linkedin_posts=linkedin_posts)
             
         if not isinstance(insights, dict):
             insights = {}
@@ -186,5 +190,32 @@ async def get_career_analysis(current_user: dict = Depends(get_current_user)):
                 "summary": "We could not load AI insights right now. Please try again shortly."
             }
         }
+
+@router.get("/job-matches")
+async def get_student_job_matches(current_user: dict = Depends(get_current_user)):
+    # 1. Get Student & LinkedIn Posts
+    student = await db.students.find_one({"email": current_user["email"]})
+    if not student or "profile" not in student:
+        return [] # Return empty if no profile
+    
+    linkedin_cursor = db.linkedin_posts.find({"user_email": current_user["email"]}).sort("saved_at", -1).limit(5)
+    linkedin_posts = [p["text"] async for p in linkedin_cursor]
+
+    # 2. Get Jobs
+    cursor = db.jobs.find().sort("created_at", -1).limit(10)
+    jobs = await cursor.to_list(length=10)
+    
+    # 3. AI Batch Matching
+    matches = []
+    for job in jobs:
+        analysis = await groq_service.get_match_analysis(student, job, linkedin_posts=linkedin_posts)
+        job["id"] = str(job["_id"])
+        del job["_id"]
+        matches.append({
+            **job,
+            "match_analysis": analysis
+        })
+        
+    return matches
 
 

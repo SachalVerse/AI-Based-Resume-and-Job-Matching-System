@@ -106,7 +106,7 @@ class GroqService:
         messages = [{"role": "user", "content": prompt}]
         return await self._call_groq(messages)
 
-    async def get_match_analysis(self, student_profile: dict, job_details: dict):
+    async def get_match_analysis(self, student_profile: dict, job_details: dict, linkedin_posts: List[str] = []):
         prompt = f"""
         Analyze the match between this student and this job.
         Return a JSON object with:
@@ -116,6 +116,7 @@ class GroqService:
         
         Student: {json.dumps(self._to_json_safe(student_profile))}
         Job: {json.dumps(self._to_json_safe(job_details))}
+        LinkedIn Posts: {json.dumps(linkedin_posts)}
         """
         messages = [{"role": "user", "content": prompt}]
         return await self._call_groq(messages)
@@ -189,7 +190,7 @@ class GroqService:
         messages = [{"role": "user", "content": prompt}]
         return await self._call_groq(messages)
 
-    async def analyze_career_path(self, profile: dict, github_data: Optional[dict] = None):
+    async def analyze_career_path(self, profile: dict, github_data: Optional[dict] = None, linkedin_posts: List[str] = []):
         prompt = f"""
         Analyze this student's trajectory and determine career interests.
         Return JSON:
@@ -202,6 +203,7 @@ class GroqService:
         
         Profile: {json.dumps(self._to_json_safe(profile))}
         GitHub Repos: {json.dumps(self._to_json_safe(github_data.get('repositories', []))) if github_data else "None"}
+        LinkedIn Posts (Recent activity): {json.dumps(linkedin_posts)}
         """
         messages = [{"role": "user", "content": prompt}]
         return await self._call_groq(messages)

@@ -23,7 +23,7 @@ export default function NativeJobs() {
   const [cvError, setCvError] = useState<string>("");
 
   useEffect(() => {
-    api.get("/jobs/")
+    api.get("/student/job-matches")
       .then((r) => setJobs(r.data || []))
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -127,7 +127,8 @@ export default function NativeJobs() {
             <div key={job.id} className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_60px_rgba(0,0,0,0.06)] transition-all group relative overflow-hidden">
               <div className="absolute top-0 right-0 p-6">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-100">
-                  <Sparkles className="w-3.5 h-3.5" /> AI Match
+                  <Sparkles className="w-3.5 h-3.5" /> 
+                  {job.match_analysis?.score ? `${job.match_analysis.score}% Match` : "AI Match"}
                 </div>
               </div>
               <div className="space-y-4">

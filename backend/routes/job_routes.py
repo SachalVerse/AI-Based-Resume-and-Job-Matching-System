@@ -99,9 +99,12 @@ async def match_candidates(job_id: str, current_user: dict = Depends(get_current
     
     matches = []
     for student in students:
-        # 3. AI Match Analysis
-        # Note: In production, we'd cache this or run it in background
-        analysis = await ai_service.get_match_analysis(student, job)
+        # 3. Fetch LinkedIn data
+        linkedin_cursor = db.linkedin_posts.find({"user_email": student["email"]}).sort("saved_at", -1).limit(5)
+        linkedin_posts = [p["text"] async for p in linkedin_cursor]
+
+        # 4. AI Match Analysis
+        analysis = await ai_service.get_match_analysis(student, job, linkedin_posts=linkedin_posts)
         
         matches.append({
             "student_email": student["email"],
